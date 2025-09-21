@@ -8,7 +8,7 @@ A modern, intuitive desktop application to manage personal finances with the pow
 - **Data Visualization**: View your spending patterns through interactive charts and graphs
 - **AI Insights**: Get personalized financial insights powered by Google's Gemini AI
 - **Filtering**: Filter expenses by date range for targeted analysis
-- **Modern UI**: Clean, intuitive interface built with CustomTkinter
+- **Modern UI**: Clean, intuitive interface built with CustomTkinter, enhanced with rich iconography for better user experience.
 
 ## Technology Stack
 
@@ -47,6 +47,13 @@ To use the AI insights feature, you'll need a Google Gemini API key:
 
 1. Visit [Google AI Studio](https://makersuite.google.com/app/apikey) to get your API key
 2. Enter your API key in the application's AI Insights tab
+
+## Running the Application
+
+If you have downloaded the pre-built executable:
+
+1. Locate the `ExpenseTrackerApp.exe` file in the `build/ExpenseTrackerApp/` directory.
+2. Double-click the executable to run the application.
 
 ## Usage Guide
 
