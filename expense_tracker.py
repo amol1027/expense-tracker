@@ -25,6 +25,9 @@ class ExpenseTracker(ctk.CTk):
         self.title("AI-Powered Expense Tracker")
         self.geometry("1200x800")
         self.minsize(800, 600)
+        
+        # Make the application open in full screen mode
+        self.state('zoomed')  # This makes the window maximized/full screen
 
         # Initialize database
         self.init_database()
