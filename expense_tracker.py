@@ -1,8 +1,9 @@
 import os
+import calendar
 import sqlite3
 import tkinter as tk
 from tkinter import messagebox
-from datetime import datetime
+from datetime import datetime, timedelta
 import customtkinter as ctk
 import matplotlib
 matplotlib.use('TkAgg')  # Set the backend before importing pyplot
@@ -27,7 +28,59 @@ class ExpenseTracker(ctk.CTk):
         self.minsize(800, 600)
         
         # Make the application open in full screen mode
-        self.state('zoomed')  # This makes the window maximized/full screen
+        self.is_fullscreen = False
+        self._previous_geometry = None
+        self._previous_state = None
+
+        def enter_fullscreen():
+            try:
+                self._previous_geometry = self.geometry()
+                self._previous_state = self.state()
+            except Exception:
+                self._previous_geometry = None
+                self._previous_state = None
+            # Use native maximized window to keep title bar (close/minimize)
+            self.overrideredirect(False)
+            self.attributes('-topmost', False)
+            self.state('zoomed')
+            self.is_fullscreen = True
+
+        def exit_fullscreen():
+            # Restore native window frame and previous size/position
+            self.overrideredirect(False)
+            self.attributes('-topmost', False)
+            if self._previous_geometry:
+                try:
+                    # First restore normal state, then geometry
+                    self.state('normal')
+                    self.geometry(self._previous_geometry)
+                except Exception:
+                    pass
+            # If previous state was maximized, re-maximize after restoring geometry
+            if self._previous_state == 'zoomed':
+                try:
+                    self.state('zoomed')
+                except Exception:
+                    pass
+            self.is_fullscreen = False
+
+        def toggle_fullscreen(event=None):
+            if self.is_fullscreen:
+                exit_fullscreen()
+            else:
+                enter_fullscreen()
+
+        # Bind keys to control fullscreen
+        self.bind('<Escape>', lambda e: exit_fullscreen())
+        self.bind('<F11>', toggle_fullscreen)
+
+        # Expose controls for use in UI callbacks
+        self.enter_fullscreen = enter_fullscreen
+        self.exit_fullscreen = exit_fullscreen
+        self.toggle_fullscreen = toggle_fullscreen
+ 
+        # Start in true fullscreen
+        enter_fullscreen()
 
         # Initialize database
         self.init_database()
@@ -93,12 +146,23 @@ class ExpenseTracker(ctk.CTk):
         # Create main frame with grid layout
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
-        
+        self.grid_rowconfigure(1, weight=0)
+ 
         # Create tabview for different sections
         self.tabview = ctk.CTkTabview(self)
         self.tabview.grid(row=0, column=0, padx=20, pady=20, sticky="nsew")
+
+        # Footer
+        self.footer_label = ctk.CTkLabel(self, text="Made by Amol", anchor="e")
+        self.footer_label.grid(row=1, column=0, sticky="e", padx=20, pady=(0, 10))
         
-        # Add tabs
+        # Load icons
+        self.add_expense_icon = self.load_icon("add_expense_icon.png", 24, 24)
+        self.view_expenses_icon = self.load_icon("view_expenses_icon.png", 24, 24)
+        self.dashboard_icon = self.load_icon("dashboard_icon.png", 24, 24)
+        self.ai_insights_icon = self.load_icon("ai_insights_icon.png", 24, 24)
+
+        # Add tabs with icons
         self.tabview.add("Add Expense")
         self.tabview.add("View Expenses")
         self.tabview.add("Dashboard")
@@ -187,6 +251,14 @@ class ExpenseTracker(ctk.CTk):
                                        foreground='white', borderwidth=2, date_pattern='yyyy-mm-dd')
         self.from_date_entry.pack(fill='both', expand=True)
         
+        # Set default "From" date to the oldest expense date if available
+        oldest_expense = self.get_oldest_expense()
+        if oldest_expense:
+            try:
+                self.from_date_entry.set_date(oldest_expense[0])
+            except:
+                pass # Fallback to default if date format is invalid
+
         # To date filter with calendar widget
         ctk.CTkLabel(filter_frame, text="To:").grid(row=0, column=2, padx=5, pady=5)
         # Create a frame to hold the DateEntry widget
@@ -216,7 +288,7 @@ class ExpenseTracker(ctk.CTk):
         # Define headings
         self.expenses_tree.heading("id", text="ID")
         self.expenses_tree.heading("date", text="Date")
-        self.expenses_tree.heading("amount", text="Amount")
+        self.expenses_tree.heading("amount", text="Amount (₹)")
         self.expenses_tree.heading("category", text="Category")
         self.expenses_tree.heading("description", text="Description")
         
@@ -277,6 +349,14 @@ class ExpenseTracker(ctk.CTk):
                                            foreground='white', borderwidth=2, date_pattern='yyyy-mm-dd')
         self.dashboard_from_date.pack(fill='both', expand=True)
         
+        # Set default "From" date to the oldest expense date if available
+        oldest_expense = self.get_oldest_expense()
+        if oldest_expense:
+            try:
+                self.dashboard_from_date.set_date(oldest_expense[0])
+            except:
+                pass # Fallback to default if date format is invalid
+
         # To date filter with calendar widget
         ctk.CTkLabel(filter_frame, text="To:").grid(row=0, column=2, padx=5, pady=5)
         # Create a frame to hold the DateEntry widget
@@ -310,6 +390,20 @@ class ExpenseTracker(ctk.CTk):
         
         # Initialize charts
         self.update_charts()
+
+    def load_icon(self, icon_name, width, height):
+        """Load an icon from the assets/icons directory."""
+        try:
+            image_path = os.path.join("assets", "icons", icon_name)
+            original_image = Image.open(image_path)
+            resized_image = original_image.resize((width, height), Image.LANCZOS)
+            return ImageTk.PhotoImage(resized_image)
+        except FileNotFoundError:
+            print(f"Warning: Icon file not found: {icon_name}")
+            return None
+        except Exception as e:
+            print(f"Error loading icon {icon_name}: {e}")
+            return None
 
     def setup_ai_insights_tab(self):
         """Set up the AI Insights tab"""
@@ -398,7 +492,9 @@ class ExpenseTracker(ctk.CTk):
             
             # Insert into treeview
             for row in self.cursor.fetchall():
-                self.expenses_tree.insert("", tk.END, values=row)
+                row_id, date_str, amount_val, category, description = row
+                amount_display = f"₹{amount_val:.2f}"
+                self.expenses_tree.insert("", tk.END, values=(row_id, date_str, amount_display, category, description))
                 
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred: {e}")
@@ -565,6 +661,15 @@ class ExpenseTracker(ctk.CTk):
                 
             except Exception as e:
                 messagebox.showerror("Error", f"An error occurred: {e}")
+
+    def get_oldest_expense(self):
+        """Retrieve the oldest expense from the database."""
+        try:
+            self.cursor.execute("SELECT date, amount, category, description FROM expenses ORDER BY date ASC LIMIT 1")
+            return self.cursor.fetchone()
+        except sqlite3.Error as e:
+            messagebox.showerror("Database Error", f"Failed to retrieve oldest expense: {e}")
+            return None
 
     def _get_chart_theme_colors(self):
         """Returns a dictionary of colors for charts based on the current CTk theme."""
@@ -768,7 +873,7 @@ class ExpenseTracker(ctk.CTk):
             
             self.cursor.execute(query, params)
             time_data = self.cursor.fetchall()
-
+ 
             if not time_data:
                 ctk.CTkLabel(self.time_chart_frame, text="No expense data available.").pack(expand=True)
                 return
@@ -787,36 +892,108 @@ class ExpenseTracker(ctk.CTk):
                 time_periods = [datetime.strptime(row[0], "%Y-%m-%d").strftime("%b %d") for row in time_data]
             else:  # monthly
                 time_periods = [datetime.strptime(row[0], "%Y-%m").strftime("%b %Y") for row in time_data]
+            # Keep the raw keys to compute ranges on click
+            time_keys = [row[0] for row in time_data]
                 
             amounts = [row[1] for row in time_data]
 
             bars = ax.bar(time_periods, amounts, color='#00A6A6')
 
-            ax.set_ylabel('Total Spending', color=theme_colors["text_color"])
+            ax.set_ylabel('Total Spending (₹)', color=theme_colors["text_color"]) 
             ax.set_title(title, color=theme_colors["text_color"], pad=20, weight='bold')
             
-            ax.tick_params(axis='x', colors=theme_colors["text_color"])
-            ax.tick_params(axis='y', colors=theme_colors["text_color"])
+            ax.tick_params(axis='x', colors=theme_colors["text_color"]) 
+            ax.tick_params(axis='y', colors=theme_colors["text_color"]) 
 
             for spine in ['top', 'right']:
                 ax.spines[spine].set_visible(False)
             for spine in ['bottom', 'left']:
-                ax.spines[spine].set_color(theme_colors["tick_color"])
+                ax.spines[spine].set_color(theme_colors["tick_color"]) 
 
             plt.xticks(rotation=30, ha='right')
 
             for bar in bars:
                 height = bar.get_height()
-                ax.annotate(f'{height:.0f}',
+                ax.annotate(f'₹{height:.0f}',
                             xy=(bar.get_x() + bar.get_width() / 2, height),
                             xytext=(0, 3), textcoords="offset points",
-                            ha='center', va='bottom', color=theme_colors["text_color"])
+                            ha='center', va='bottom', color=theme_colors["text_color"]) 
 
             fig.tight_layout()
 
             canvas = FigureCanvasTkAgg(fig, master=self.time_chart_frame)
             canvas.draw()
             canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+
+            # Helper: compute from/to dates for a time key
+            def compute_range(key: str):
+                if view_type == 'daily':
+                    return key, key
+                if view_type == 'monthly':
+                    year, month = map(int, key.split('-'))
+                    start = f"{year:04d}-{month:02d}-01"
+                    last_day = calendar.monthrange(year, month)[1]
+                    end = f"{year:04d}-{month:02d}-{last_day:02d}"
+                    return start, end
+                # weekly: key like YYYY-WW (sqlite %W)
+                year, week = key.split('-')
+                year_i, week_i = int(year), int(week)
+                # Monday of the given week (week 00 allowed). Use %Y-%W-%w with Monday=1
+                try:
+                    monday = datetime.strptime(f"{year}-{week}-1", "%Y-%W-%w")
+                except Exception:
+                    # Fallback: first Monday of year + weeks
+                    jan1 = datetime(year_i, 1, 1)
+                    monday = jan1 if jan1.weekday() == 0 else (jan1 + timedelta(days=(7 - jan1.weekday())))
+                    monday = monday + timedelta(weeks=week_i)
+                start = monday.strftime("%Y-%m-%d")
+                end = (monday + timedelta(days=6)).strftime("%Y-%m-%d")
+                return start, end
+
+            # Click handler to update pie chart based on clicked bar
+            def on_bar_click(event):
+                if event.inaxes != ax:
+                    return
+                for idx, bar in enumerate(bars):
+                    contains, _ = bar.contains(event)
+                    if contains:
+                        key = time_keys[idx]
+                        start_date, end_date = compute_range(key)
+                        # Update category pie chart for this range
+                        self.update_category_chart(start_date, end_date)
+                        break
+
+            canvas.mpl_connect('button_press_event', on_bar_click)
+
+            # Change cursor when hovering over clickable bars
+            tk_widget = canvas.get_tk_widget()
+
+            def on_motion(event):
+                if event.inaxes != ax:
+                    try:
+                        tk_widget.config(cursor="arrow")
+                    except Exception:
+                        pass
+                    return
+                hovering = False
+                for bar in bars:
+                    contains, _ = bar.contains(event)
+                    if contains:
+                        hovering = True
+                        break
+                try:
+                    tk_widget.config(cursor="hand2" if hovering else "arrow")
+                except Exception:
+                    pass
+
+            def on_leave(event):
+                try:
+                    tk_widget.config(cursor="arrow")
+                except Exception:
+                    pass
+
+            canvas.mpl_connect('motion_notify_event', on_motion)
+            canvas.mpl_connect('figure_leave_event', on_leave)
 
         except Exception as e:
             messagebox.showerror("Chart Error", f"Could not update {view_type} chart: {e}")
@@ -893,7 +1070,7 @@ class ExpenseTracker(ctk.CTk):
                 month_labels = [datetime.strptime(m, "%Y-%m").strftime("%b %Y") for m in sorted_months]
                 ax.plot(month_labels, amounts, marker='o', linestyle='-', color=colors[i % len(colors)], label=category)
 
-            ax.set_ylabel('Total Spending', color=theme_colors["text_color"])
+            ax.set_ylabel('Total Spending (₹)', color=theme_colors["text_color"])
             ax.set_title('Spending Trends by Top Categories', color=theme_colors["text_color"], pad=20, weight='bold')
 
             ax.tick_params(axis='x', colors=theme_colors["text_color"])
@@ -945,24 +1122,24 @@ class ExpenseTracker(ctk.CTk):
             self.cursor.execute("SELECT strftime('%Y-%m', date) as month, SUM(amount) FROM expenses GROUP BY month ORDER BY month DESC LIMIT 3")
             monthly_spending = self.cursor.fetchall()
             
-            prompt = f"""As a helpful financial advisor, analyze the following expense data and provide insights.
+            prompt = f"""As a helpful financial advisor, analyze the following expense data (currency: INR ₹) and provide insights.
 The user wants a clear, concise summary of their spending habits and actionable advice.
 
 **Expense Data Summary:**
 
-* **Total Recorded Spending:** ${total_spending:.2f}
+* **Total Recorded Spending:** ₹{total_spending:.2f}
 
 **Spending by Category:**
 """
             
             for category, amount in category_spending:
                 percentage = (amount / total_spending) * 100
-                prompt += f"* **{category}:** ${amount:.2f} ({percentage:.1f}%)\n"
+                prompt += f"* **{category}:** ₹{amount:.2f} ({percentage:.1f}%)\n"
             
             prompt += "\n**Recent Monthly Spending (last 3 months with data):**\n"
             if monthly_spending:
                 for month, amount in monthly_spending:
-                    prompt += f"* **{datetime.strptime(month, '%Y-%m').strftime('%B %Y')}:** ${amount:.2f}\n"
+                    prompt += f"* **{datetime.strptime(month, '%Y-%m').strftime('%B %Y')}:** ₹{amount:.2f}\n"
             else:
                 prompt += "* Not enough data for monthly trend analysis.\n"
             
