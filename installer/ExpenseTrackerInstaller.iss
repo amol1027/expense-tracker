@@ -2,7 +2,7 @@
 
 [Setup]
 AppName=AI-Powered Expense Tracker
-AppVersion=1.0.0
+AppVersion=1.0.1
 AppPublisher=Amol Solase
 DefaultDirName={autopf}\Expense Tracker
 DefaultGroupName=Expense Tracker
