@@ -14,6 +14,7 @@ import google.generativeai as genai
 from PIL import Image, ImageTk
 from tkinter import ttk # Import ttk for Treeview styling if needed
 from tkcalendar import DateEntry # Import DateEntry for calendar widget
+from tkinter import filedialog as fd
 
 # Set appearance mode and default color theme
 ctk.set_appearance_mode("System")  # Modes: "System" (standard), "Dark", "Light"
@@ -86,6 +87,9 @@ class ExpenseTracker(ctk.CTk):
         # Initialize database
         self.init_database()
 
+        # Apply saved theme preference (defaults to System)
+        self.apply_saved_theme()
+
         # Create UI components
         self.create_ui()
 
@@ -117,6 +121,14 @@ class ExpenseTracker(ctk.CTk):
                     name TEXT UNIQUE NOT NULL
                 )
             ''')
+
+            # Create settings table for app preferences (e.g., theme)
+            self.cursor.execute('''
+                CREATE TABLE IF NOT EXISTS settings (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                )
+            ''')
             
             # Insert default categories if they don't exist
             default_categories = [
@@ -142,6 +154,34 @@ class ExpenseTracker(ctk.CTk):
         except sqlite3.Error as e:
             messagebox.showerror("Database Error", f"An error occurred: {e}")
 
+    def get_setting(self, key: str, default: str | None = None) -> str | None:
+        """Retrieve a setting value from the settings table."""
+        try:
+            self.cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
+            row = self.cursor.fetchone()
+            return row[0] if row else default
+        except Exception:
+            return default
+
+    def set_setting(self, key: str, value: str) -> None:
+        """Upsert a setting value in the settings table."""
+        try:
+            self.cursor.execute(
+                "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                (key, value)
+            )
+            self.conn.commit()
+        except Exception:
+            pass
+
+    def apply_saved_theme(self) -> None:
+        """Apply saved appearance mode (System/Dark/Light)."""
+        saved_mode = self.get_setting("appearance_mode", "System")
+        try:
+            ctk.set_appearance_mode(saved_mode)
+        except Exception:
+            ctk.set_appearance_mode("System")
+
     def create_ui(self):
         """Create the main UI components"""
         # Create main frame with grid layout
@@ -164,9 +204,38 @@ class ExpenseTracker(ctk.CTk):
         except Exception:
             pass
 
-        # Footer
-        self.footer_label = ctk.CTkLabel(self, text="Made by Amol Solase with 💛", anchor="e")
-        self.footer_label.grid(row=1, column=0, sticky="e", padx=20, pady=(0, 10))
+        # Footer with theme selector
+        bottom_frame = ctk.CTkFrame(self)
+        bottom_frame.grid(row=1, column=0, sticky="ew", padx=20, pady=(0, 10))
+        bottom_frame.grid_columnconfigure(0, weight=1)
+        bottom_frame.grid_columnconfigure(1, weight=0)
+
+        # Theme selector (System/Dark/Light)
+        def on_theme_change(choice: str):
+            try:
+                ctk.set_appearance_mode(choice)
+                self.set_setting("appearance_mode", choice)
+            except Exception:
+                pass
+            # Refresh charts to apply new colors
+            try:
+                self.update_charts()
+            except Exception:
+                pass
+
+        saved_mode = self.get_setting("appearance_mode", "System")
+        self.appearance_var = ctk.StringVar(value=saved_mode)
+        self.theme_menu = ctk.CTkOptionMenu(
+            bottom_frame,
+            values=["System", "Dark", "Light"],
+            variable=self.appearance_var,
+            command=on_theme_change,
+            width=130
+        )
+        self.theme_menu.grid(row=0, column=0, sticky="w")
+
+        self.footer_label = ctk.CTkLabel(bottom_frame, text="Made by Amol Solase with 💛", anchor="e")
+        self.footer_label.grid(row=0, column=1, sticky="e")
         
         # Load icons
         self.add_expense_icon = self.load_icon("add_expense_icon.png", 24, 24)
@@ -241,7 +310,13 @@ class ExpenseTracker(ctk.CTk):
         self.description_entry.grid(row=3, column=1, padx=10, pady=10, sticky="ew")
         
         # Submit button
-        submit_button = ctk.CTkButton(form_frame, text="Add Expense", command=self.add_expense)
+        submit_button = ctk.CTkButton(
+            form_frame,
+            text="➕ Add Expense",
+            command=self.add_expense,
+            image=self.add_expense_icon,
+            compound="left"
+        )
         submit_button.grid(row=4, column=0, columnspan=2, padx=10, pady=20)
 
     def setup_view_expenses_tab(self):
@@ -304,7 +379,13 @@ class ExpenseTracker(ctk.CTk):
         self.to_date_entry.pack(fill='both', expand=True)
         
         # Filter button
-        filter_button = ctk.CTkButton(filter_frame, text="Filter", command=self.filter_expenses)
+        filter_button = ctk.CTkButton(
+            filter_frame,
+            text="🔎 Filter",
+            command=self.filter_expenses,
+            image=self.view_expenses_icon,
+            compound="left"
+        )
         filter_button.grid(row=0, column=4, padx=5, pady=5)
         
         # Expenses list (using a Treeview inside a CTkFrame)
@@ -416,7 +497,13 @@ class ExpenseTracker(ctk.CTk):
         self.dashboard_to_date.pack(fill='both', expand=True)
         
         # Filter button
-        filter_button = ctk.CTkButton(filter_frame, text="Apply Filter", command=self.update_charts)
+        filter_button = ctk.CTkButton(
+            filter_frame,
+            text="🔎 Apply Filter",
+            command=self.update_charts,
+            image=self.view_expenses_icon,
+            compound="left"
+        )
         filter_button.grid(row=0, column=4, padx=5, pady=5)
         
         # Placeholder for category pie chart
@@ -432,7 +519,13 @@ class ExpenseTracker(ctk.CTk):
         self.trends_chart_frame.grid(row=2, column=0, columnspan=2, padx=10, pady=10, sticky="nsew")
         
         # Button to refresh charts
-        refresh_button = ctk.CTkButton(dashboard_frame, text="Refresh Charts", command=self.update_charts)
+        refresh_button = ctk.CTkButton(
+            dashboard_frame,
+            text="📊 Refresh Charts",
+            command=self.update_charts,
+            image=self.dashboard_icon,
+            compound="left"
+        )
         refresh_button.grid(row=3, column=0, columnspan=2, padx=10, pady=10)
         
         # Initialize charts
@@ -460,18 +553,107 @@ class ExpenseTracker(ctk.CTk):
         ai_frame = ctk.CTkFrame(tab)
         ai_frame.grid(row=0, column=0, padx=20, pady=20, sticky="nsew")
         ai_frame.grid_columnconfigure(0, weight=1)
-        ai_frame.grid_rowconfigure(1, weight=1)
+        ai_frame.grid_rowconfigure(1, weight=0)
+        ai_frame.grid_rowconfigure(2, weight=1)
         
-        # Header and generate button
+        # Header and toolbar
         header_frame = ctk.CTkFrame(ai_frame)
-        header_frame.grid(row=0, column=0, padx=10, pady=10, sticky="ew")
+        header_frame.grid(row=0, column=0, padx=10, pady=(10, 5), sticky="ew")
         header_frame.grid_columnconfigure(0, weight=1)
-        
-        ctk.CTkLabel(header_frame, text="AI Insights powered by Gemini 1.5 Flash", 
-                     font=ctk.CTkFont(size=16, weight="bold")).grid(row=0, column=0, padx=5, pady=5, sticky="w")
-        
-        self.generate_button = ctk.CTkButton(header_frame, text="Generate Insights", command=self.generate_ai_insights)
-        self.generate_button.grid(row=0, column=1, padx=5, pady=5)
+        header_frame.grid_columnconfigure(1, weight=0)
+        header_frame.grid_columnconfigure(2, weight=0)
+        header_frame.grid_columnconfigure(3, weight=0)
+        header_frame.grid_columnconfigure(4, weight=0)
+        header_frame.grid_columnconfigure(5, weight=0)
+        header_frame.grid_columnconfigure(6, weight=0)
+
+        ctk.CTkLabel(
+            header_frame,
+            text="🤖 AI Insights (Gemini 1.5 Flash)",
+            font=ctk.CTkFont(size=16, weight="bold")
+        ).grid(row=0, column=0, padx=5, pady=5, sticky="w")
+
+        # Toolbar buttons
+        self.generate_button = ctk.CTkButton(header_frame, text="⚡ Generate", command=self.generate_ai_insights)
+        self.generate_button.grid(row=0, column=1, padx=4, pady=5)
+
+        # Tone selector
+        self.ai_tone_var = ctk.StringVar(value="Concise")
+        tone_menu = ctk.CTkOptionMenu(
+            header_frame,
+            values=["Concise", "Detailed"],
+            variable=self.ai_tone_var,
+            width=120
+        )
+        tone_menu.configure(anchor="center")
+        tone_menu.grid(row=0, column=2, padx=4, pady=5)
+
+        def copy_insights():
+            try:
+                text = self.insights_textbox.get("1.0", tk.END).strip()
+                if not text:
+                    return
+                self.clipboard_clear()
+                self.clipboard_append(text)
+                try:
+                    self.status_label.configure(text="Copied to clipboard")
+                except Exception:
+                    pass
+            except Exception:
+                pass
+
+        def clear_insights():
+            try:
+                self.insights_textbox.configure(state="normal")
+                self.insights_textbox.delete("1.0", tk.END)
+                self.insights_textbox.insert("1.0", "Start by generating insights to see your analysis here.")
+                self.insights_textbox.configure(state="disabled")
+                try:
+                    self.status_label.configure(text="Cleared")
+                except Exception:
+                    pass
+            except Exception:
+                pass
+
+        def save_insights():
+            try:
+                text = self.insights_textbox.get("1.0", tk.END).strip()
+                if not text:
+                    return
+                file_path = fd.asksaveasfilename(
+                    defaultextension=".txt",
+                    filetypes=[("Text Files", "*.txt"), ("Markdown", "*.md"), ("All Files", "*.*")],
+                    title="Save AI Insights"
+                )
+                if file_path:
+                    with open(file_path, "w", encoding="utf-8") as f:
+                        f.write(text)
+                    try:
+                        self.status_label.configure(text="Saved")
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+        copy_btn = ctk.CTkButton(header_frame, text="📋 Copy", command=copy_insights)
+        copy_btn.grid(row=0, column=3, padx=4, pady=5)
+
+        clear_btn = ctk.CTkButton(header_frame, text="🧹 Clear", command=clear_insights)
+        clear_btn.grid(row=0, column=4, padx=4, pady=5)
+
+        save_btn = ctk.CTkButton(header_frame, text="💾 Save", command=save_insights)
+        save_btn.grid(row=0, column=5, padx=4, pady=5)
+
+        # Status label
+        self.status_label = ctk.CTkLabel(header_frame, text="", anchor="e")
+        self.status_label.grid(row=0, column=6, padx=(8, 0), pady=5, sticky="e")
+
+        # Meta summary chip under header
+        meta_frame = ctk.CTkFrame(ai_frame)
+        meta_frame.grid(row=1, column=0, padx=10, pady=(0, 6), sticky="ew")
+        meta_frame.grid_columnconfigure(0, weight=1)
+        self.ai_meta_label = ctk.CTkLabel(meta_frame, text="📝 Tone: Concise • 🔤 Emojis: On", anchor="w")
+        self.ai_meta_label.grid(row=0, column=0, sticky="w")
 
         # Loading indicator for AI generation
         self.ai_progress = ctk.CTkProgressBar(header_frame, mode="indeterminate")
@@ -483,7 +665,11 @@ class ExpenseTracker(ctk.CTk):
         
         # Insights display area
         self.insights_textbox = ctk.CTkTextbox(ai_frame, height=400, wrap="word")
-        self.insights_textbox.grid(row=1, column=0, padx=10, pady=10, sticky="nsew")
+        self.insights_textbox.grid(row=2, column=0, padx=10, pady=10, sticky="nsew")
+        try:
+            self.insights_textbox.configure(font=("Segoe UI", 14))
+        except Exception:
+            pass
         self.insights_textbox.configure(state="disabled")
 
     def add_expense(self):
@@ -745,7 +931,7 @@ class ExpenseTracker(ctk.CTk):
             }
         else:  # Light mode
             return {
-                "bg_color": "#DBDBDB",
+                "bg_color": "#FFFFFF",
                 "text_color": "#242424",
                 "tick_color": "#5C5C5C",
                 "grid_color": "#C2C2C2"
@@ -1166,7 +1352,7 @@ class ExpenseTracker(ctk.CTk):
             self.insights_textbox.delete("1.0", tk.END)
             self.insights_textbox.insert("1.0", "🤖 Generating insights, please wait...")
             if hasattr(self, "generate_button") and self.generate_button is not None:
-                self.generate_button.configure(state="disabled", text="Generating…")
+                self.generate_button.configure(state="disabled", text="⏳ Generating…")
             if hasattr(self, "ai_progress") and self.ai_progress is not None:
                 self.ai_progress.grid()
                 try:
@@ -1205,21 +1391,26 @@ class ExpenseTracker(ctk.CTk):
             self.cursor.execute("SELECT strftime('%Y-%m', date) as month, SUM(amount) FROM expenses GROUP BY month ORDER BY month DESC LIMIT 3")
             monthly_spending = self.cursor.fetchall()
 
-            prompt = f"""As a helpful financial advisor, analyze the following expense data (currency: INR ₹) and provide insights.
-The user wants a clear, concise summary of their spending habits and actionable advice.
+            tone = "concise" if (hasattr(self, 'ai_tone_var') and self.ai_tone_var.get() == 'Concise') else "detailed"
 
-**Expense Data Summary:**
+            prompt = f"""You are a friendly financial coach. Analyze the user's expense data and respond in {tone} form with emojis for section headers and bullets. Use clear markdown.
 
-* **Total Recorded Spending:** ₹{total_spending:.2f}
+Audience: non-technical user who prefers warm, encouraging tone.
+Currency: INR (₹). Always prefix amounts with ₹.
+Emoji style: tasteful (2-4 per section), not overwhelming.
 
-**Spending by Category:**
+Expense Data Summary:
+
+* Total Recorded Spending: ₹{total_spending:.2f}
+
+Spending by Category:
 """
 
             for category, amount in category_spending:
                 percentage = (amount / total_spending) * 100 if total_spending else 0
                 prompt += f"* **{category}:** ₹{amount:.2f} ({percentage:.1f}%)\n"
 
-            prompt += "\n**Recent Monthly Spending (last 3 months with data):**\n"
+            prompt += "\nRecent Monthly Spending (last 3 months with data):\n"
             if monthly_spending:
                 for month, amount in monthly_spending:
                     prompt += f"* **{datetime.strptime(month, '%Y-%m').strftime('%B %Y')}:** ₹{amount:.2f}\n"
@@ -1227,15 +1418,18 @@ The user wants a clear, concise summary of their spending habits and actionable 
                 prompt += "* Not enough data for monthly trend analysis.\n"
 
             prompt += """
+
 ---
-**Your Analysis and Recommendations:**
+Please produce:
+1) 🧭 Overview: one paragraph.
+2) 🔎 Key Observations: 2-3 bullets.
+3) ✅ Actionable Tips: 3 short, practical bullets.
+4) 📅 Notable Trends (if present): one short bullet.
 
-Based on this data, please provide the following in a friendly and encouraging tone:
-1.  **Spending Overview:** A brief, one-paragraph summary of the overall spending pattern.
-2.  **Key Observation:** Point out the most significant finding (e.g., a dominant category, a sudden increase in spending).
-3.  **Actionable Tips:** Provide 2-3 specific, practical suggestions for managing expenses better. Frame them as positive steps.
-
-Format the response using markdown for clarity and readability.
+Rules:
+- Use markdown headings and bullets; include emojis in headings and bullets.
+- Keep it {tone}; avoid fluff; be specific with INR values when relevant.
+- End with a short, motivating one-liner with an emoji.
 """
         except Exception as e:
             # If something goes wrong while preparing data, reset UI and show error
@@ -1277,6 +1471,15 @@ Format the response using markdown for clarity and readability.
                         self.insights_textbox.delete("1.0", tk.END)
                         self.insights_textbox.insert("1.0", text)
                         self.insights_textbox.configure(state="disabled")
+                        try:
+                            now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+                            if hasattr(self, "status_label") and self.status_label is not None:
+                                tone_text = "Concise" if (hasattr(self, 'ai_tone_var') and self.ai_tone_var.get() == 'Concise') else "Detailed"
+                                if hasattr(self, 'ai_meta_label') and self.ai_meta_label is not None:
+                                    self.ai_meta_label.configure(text=f"📝 Tone: {tone_text} • 🔤 Emojis: On")
+                                self.status_label.configure(text=f"Updated {now_str}")
+                        except Exception:
+                            pass
                     except Exception:
                         pass
                     finally:
@@ -1285,7 +1488,7 @@ Format the response using markdown for clarity and readability.
                                 self.ai_progress.stop()
                                 self.ai_progress.grid_remove()
                             if hasattr(self, "generate_button") and self.generate_button is not None:
-                                self.generate_button.configure(state="normal", text="Generate Insights")
+                                self.generate_button.configure(state="normal", text="⚡ Generate")
                         except Exception:
                             pass
 
