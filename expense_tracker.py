@@ -15,6 +15,7 @@ from PIL import Image, ImageTk
 from tkinter import ttk # Import ttk for Treeview styling if needed
 from tkcalendar import DateEntry # Import DateEntry for calendar widget
 from tkinter import filedialog as fd
+import re # Import regex module
 
 # Set appearance mode and default color theme
 ctk.set_appearance_mode("System")  # Modes: "System" (standard), "Dark", "Light"
@@ -553,8 +554,9 @@ class ExpenseTracker(ctk.CTk):
         ai_frame = ctk.CTkFrame(tab)
         ai_frame.grid(row=0, column=0, padx=20, pady=20, sticky="nsew")
         ai_frame.grid_columnconfigure(0, weight=1)
-        ai_frame.grid_rowconfigure(1, weight=0)
-        ai_frame.grid_rowconfigure(2, weight=1)
+        ai_frame.grid_rowconfigure(1, weight=0) # Meta label row, minimal height
+        ai_frame.grid_rowconfigure(2, weight=0) # Progress bar row, minimal height
+        ai_frame.grid_rowconfigure(3, weight=1) # Insights textbox row, takes remaining space
         
         # Header and toolbar
         header_frame = ctk.CTkFrame(ai_frame)
@@ -587,6 +589,7 @@ class ExpenseTracker(ctk.CTk):
         )
         tone_menu.configure(anchor="center")
         tone_menu.grid(row=0, column=2, padx=4, pady=5)
+        header_frame.grid_columnconfigure(3, weight=1) # Give remaining space to this column after removing emoji switch
 
         def copy_insights():
             try:
@@ -609,9 +612,13 @@ class ExpenseTracker(ctk.CTk):
                 self.insights_textbox.insert("1.0", "Start by generating insights to see your analysis here.")
                 self.insights_textbox.configure(state="disabled")
                 try:
-                    self.status_label.configure(text="Cleared")
+                    self.status_label.configure(text="") # Clear the status label
                 except Exception:
                     pass
+                if hasattr(self, "copy_btn") and self.copy_btn is not None:
+                    self.copy_btn.configure(state="disabled")
+                if hasattr(self, "save_btn") and self.save_btn is not None:
+                    self.save_btn.configure(state="disabled")
             except Exception:
                 pass
 
@@ -635,29 +642,30 @@ class ExpenseTracker(ctk.CTk):
             except Exception:
                 pass
 
-        copy_btn = ctk.CTkButton(header_frame, text="📋 Copy", command=copy_insights)
-        copy_btn.grid(row=0, column=3, padx=4, pady=5)
+        self.copy_btn = ctk.CTkButton(header_frame, text="📋 Copy", command=copy_insights, state="disabled")
+        self.copy_btn.grid(row=0, column=5, padx=4, pady=5)
 
         clear_btn = ctk.CTkButton(header_frame, text="🧹 Clear", command=clear_insights)
-        clear_btn.grid(row=0, column=4, padx=4, pady=5)
+        clear_btn.grid(row=0, column=6, padx=4, pady=5)
 
-        save_btn = ctk.CTkButton(header_frame, text="💾 Save", command=save_insights)
-        save_btn.grid(row=0, column=5, padx=4, pady=5)
+        self.save_btn = ctk.CTkButton(header_frame, text="💾 Save", command=save_insights, state="disabled")
+        self.save_btn.grid(row=0, column=7, padx=4, pady=5)
 
         # Status label
         self.status_label = ctk.CTkLabel(header_frame, text="", anchor="e")
-        self.status_label.grid(row=0, column=6, padx=(8, 0), pady=5, sticky="e")
+        self.status_label.grid(row=0, column=8, padx=(8, 0), pady=5, sticky="e")
 
         # Meta summary chip under header
         meta_frame = ctk.CTkFrame(ai_frame)
         meta_frame.grid(row=1, column=0, padx=10, pady=(0, 6), sticky="ew")
         meta_frame.grid_columnconfigure(0, weight=1)
-        self.ai_meta_label = ctk.CTkLabel(meta_frame, text="📝 Tone: Concise • 🔤 Emojis: On", anchor="w")
+        self.ai_meta_label = ctk.CTkLabel(meta_frame, text="", anchor="w") # Initialize empty, will be updated by update_ai_meta_label
         self.ai_meta_label.grid(row=0, column=0, sticky="w")
+        self.update_ai_meta_label() # Initial call to set the meta label
 
         # Loading indicator for AI generation
-        self.ai_progress = ctk.CTkProgressBar(header_frame, mode="indeterminate")
-        self.ai_progress.grid(row=1, column=0, columnspan=2, padx=5, pady=(0,5), sticky="ew")
+        self.ai_progress = ctk.CTkProgressBar(ai_frame, mode="indeterminate")
+        self.ai_progress.grid(row=2, column=0, padx=10, pady=(0,5), sticky="ew") # Moved to row 2
         try:
             self.ai_progress.grid_remove()
         except Exception:
@@ -665,12 +673,17 @@ class ExpenseTracker(ctk.CTk):
         
         # Insights display area
         self.insights_textbox = ctk.CTkTextbox(ai_frame, height=400, wrap="word")
-        self.insights_textbox.grid(row=2, column=0, padx=10, pady=10, sticky="nsew")
+        self.insights_textbox.grid(row=3, column=0, padx=10, pady=10, sticky="nsew") # Moved to row 3
         try:
             self.insights_textbox.configure(font=("Segoe UI", 14))
         except Exception:
             pass
         self.insights_textbox.configure(state="disabled")
+
+    def update_ai_meta_label(self):
+        """Update the AI insights meta label based on current settings."""
+        tone_text = self.ai_tone_var.get()
+        self.ai_meta_label.configure(text=f"📝 Tone: {tone_text} ") # Emojis are always on
 
     def add_expense(self):
         """Add a new expense to the database"""
@@ -1383,6 +1396,10 @@ class ExpenseTracker(ctk.CTk):
                         pass
                 messagebox.showinfo("AI Insights", "No expense data to analyze. Please add some expenses first.")
                 self.insights_textbox.configure(state="disabled")
+                if hasattr(self, "copy_btn") and self.copy_btn is not None:
+                    self.copy_btn.configure(state="disabled")
+                if hasattr(self, "save_btn") and self.save_btn is not None:
+                    self.save_btn.configure(state="disabled")
                 return
 
             self.cursor.execute("SELECT category, SUM(amount) FROM expenses GROUP BY category ORDER BY SUM(amount) DESC")
@@ -1392,12 +1409,16 @@ class ExpenseTracker(ctk.CTk):
             monthly_spending = self.cursor.fetchall()
 
             tone = "concise" if (hasattr(self, 'ai_tone_var') and self.ai_tone_var.get() == 'Concise') else "detailed"
+            include_emojis = True # Emojis are now always on by default
 
-            prompt = f"""You are a friendly financial coach. Analyze the user's expense data and respond in {tone} form with emojis for section headers and bullets. Use clear markdown.
+            emoji_instruction = "with emojis for section headers and bullets"
+            emoji_style_instruction = "Emoji style: tasteful (2-4 per section), not overwhelming."
+
+            prompt = f"""You are a friendly financial coach. Analyze the user's expense data and respond in {tone} form {emoji_instruction}. Use clear markdown.
 
 Audience: non-technical user who prefers warm, encouraging tone.
 Currency: INR (₹). Always prefix amounts with ₹.
-Emoji style: tasteful (2-4 per section), not overwhelming.
+{emoji_style_instruction}
 
 Expense Data Summary:
 
@@ -1421,16 +1442,17 @@ Spending by Category:
 
 ---
 Please produce:
-1) 🧭 Overview: one paragraph.
-2) 🔎 Key Observations: 2-3 bullets.
-3) ✅ Actionable Tips: 3 short, practical bullets.
-4) 📅 Notable Trends (if present): one short bullet.
+1) Overview: one paragraph.
+2) Key Observations: 2-3 bullets.
+3) Actionable Tips: 3 short, practical bullets.
+4) Notable Trends (if present): one short bullet.
 
 Rules:
-- Use markdown headings and bullets; include emojis in headings and bullets.
+- Use markdown headings and bullets.
 - Keep it {tone}; avoid fluff; be specific with INR values when relevant.
-- End with a short, motivating one-liner with an emoji.
+- End with a short, motivating one-liner.
 """
+            prompt += "- Include emojis in headings and bullets.\n- End with a short, motivating one-liner with an emoji.\n"
         except Exception as e:
             # If something goes wrong while preparing data, reset UI and show error
             def prep_error():
@@ -1465,6 +1487,9 @@ Rules:
                 response = model.generate_content(prompt)
 
                 text = response.text
+                # Emojis are always included, no need to remove them based on a toggle
+                # if not self.ai_emojis_var.get():
+                #     text = self._remove_emojis(text)
 
                 def done_success():
                     try:
@@ -1474,9 +1499,7 @@ Rules:
                         try:
                             now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
                             if hasattr(self, "status_label") and self.status_label is not None:
-                                tone_text = "Concise" if (hasattr(self, 'ai_tone_var') and self.ai_tone_var.get() == 'Concise') else "Detailed"
-                                if hasattr(self, 'ai_meta_label') and self.ai_meta_label is not None:
-                                    self.ai_meta_label.configure(text=f"📝 Tone: {tone_text} • 🔤 Emojis: On")
+                                self.update_ai_meta_label() # Update meta label to reflect current settings
                                 self.status_label.configure(text=f"Updated {now_str}")
                         except Exception:
                             pass
@@ -1489,6 +1512,10 @@ Rules:
                                 self.ai_progress.grid_remove()
                             if hasattr(self, "generate_button") and self.generate_button is not None:
                                 self.generate_button.configure(state="normal", text="⚡ Generate")
+                            if hasattr(self, "copy_btn") and self.copy_btn is not None:
+                                self.copy_btn.configure(state="normal")
+                            if hasattr(self, "save_btn") and self.save_btn is not None:
+                                self.save_btn.configure(state="normal")
                         except Exception:
                             pass
 
@@ -1510,6 +1537,10 @@ Rules:
                                 self.ai_progress.grid_remove()
                             if hasattr(self, "generate_button") and self.generate_button is not None:
                                 self.generate_button.configure(state="normal", text="Generate Insights")
+                            if hasattr(self, "copy_btn") and self.copy_btn is not None:
+                                self.copy_btn.configure(state="disabled")
+                            if hasattr(self, "save_btn") and self.save_btn is not None:
+                                self.save_btn.configure(state="disabled")
                         except Exception:
                             pass
 
@@ -1523,6 +1554,23 @@ Rules:
             if hasattr(self, 'conn'):
                 self.conn.close()
             self.destroy()
+
+    def _remove_emojis(self, text: str) -> str:
+        """Removes emojis from a given string."""
+        # This regex pattern matches most common emojis and emoji sequences
+        # It's a broad pattern and might remove some non-emoji symbols if they fall into the unicode ranges.
+        # For a more robust solution, a dedicated emoji library might be needed.
+        emoji_pattern = re.compile(
+            "["
+            "\U0001F600-\U0001F64F"  # emoticons
+            "\U0001F300-\U0001F5FF"  # symbols & pictographs
+            "\U0001F680-\U0001F6FF"  # transport & map symbols
+            "\U0001F1E0-\U0001F1FF"  # flags (iOS)
+            "\U00002702-\U000027B0"
+            "\U000024C2-\U0001F251"
+            "]+", flags=re.UNICODE
+        )
+        return emoji_pattern.sub(r'', text)
 
 # Run the application
 if __name__ == "__main__":
