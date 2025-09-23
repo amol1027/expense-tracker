@@ -1,3 +1,5 @@
+#define EnableSigning 0
+
 [Setup]
 AppName=AI-Powered Expense Tracker
 AppVersion=1.0.0
@@ -13,6 +15,12 @@ SolidCompression=yes
 DisableDirPage=no
 DisableProgramGroupPage=no
 WizardStyle=modern
+
+#if EnableSigning
+; Enable signing (requires SignTool in PATH and a valid code-signing cert)
+SignTool=signtool sign /fd SHA256 /a /tr http://timestamp.digicert.com /td SHA256 $f
+SignedUninstaller=yes
+#endif
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

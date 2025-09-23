@@ -1,4 +1,5 @@
 import os
+import threading
 import calendar
 import sqlite3
 import tkinter as tk
@@ -152,8 +153,19 @@ class ExpenseTracker(ctk.CTk):
         self.tabview = ctk.CTkTabview(self)
         self.tabview.grid(row=0, column=0, padx=20, pady=20, sticky="nsew")
 
+        # Increase text size in tables (Treeview) across the app
+        try:
+            tree_style = ttk.Style()
+            # Ensure current theme is active to avoid theme errors
+            current_theme = tree_style.theme_use()
+            tree_style.theme_use(current_theme)
+            tree_style.configure("Treeview", font=("Segoe UI", 12), rowheight=28)
+            tree_style.configure("Treeview.Heading", font=("Segoe UI", 13, "bold"))
+        except Exception:
+            pass
+
         # Footer
-        self.footer_label = ctk.CTkLabel(self, text="Made by Amol", anchor="e")
+        self.footer_label = ctk.CTkLabel(self, text="Made by Amol Solase with 💛", anchor="e")
         self.footer_label.grid(row=1, column=0, sticky="e", padx=20, pady=(0, 10))
         
         # Load icons
@@ -195,9 +207,16 @@ class ExpenseTracker(ctk.CTk):
         date_frame = tk.Frame(form_frame)
         date_frame.grid(row=0, column=1, padx=10, pady=10, sticky="ew")
         
-        # Create DateEntry widget with current date
-        self.date_entry = DateEntry(date_frame, width=12, background='darkblue',
-                                   foreground='white', borderwidth=2, date_pattern='yyyy-mm-dd')
+        # Create DateEntry widget with current date (larger size)
+        self.date_entry = DateEntry(
+            date_frame,
+            width=16,
+            background='darkblue',
+            foreground='white',
+            borderwidth=2,
+            date_pattern='yyyy-mm-dd',
+            font=("Segoe UI", 13)
+        )
         self.date_entry.pack(fill='both', expand=True)
         
         # Amount input
@@ -246,9 +265,16 @@ class ExpenseTracker(ctk.CTk):
         from_date_frame = tk.Frame(filter_frame)
         from_date_frame.grid(row=0, column=1, padx=5, pady=5)
         
-        # Create DateEntry widget
-        self.from_date_entry = DateEntry(from_date_frame, width=12, background='darkblue',
-                                       foreground='white', borderwidth=2, date_pattern='yyyy-mm-dd')
+        # Create DateEntry widget (larger size)
+        self.from_date_entry = DateEntry(
+            from_date_frame,
+            width=16,
+            background='darkblue',
+            foreground='white',
+            borderwidth=2,
+            date_pattern='yyyy-mm-dd',
+            font=("Segoe UI", 13)
+        )
         self.from_date_entry.pack(fill='both', expand=True)
         
         # Set default "From" date to the oldest expense date if available
@@ -265,9 +291,16 @@ class ExpenseTracker(ctk.CTk):
         to_date_frame = tk.Frame(filter_frame)
         to_date_frame.grid(row=0, column=3, padx=5, pady=5)
         
-        # Create DateEntry widget
-        self.to_date_entry = DateEntry(to_date_frame, width=12, background='darkblue',
-                                     foreground='white', borderwidth=2, date_pattern='yyyy-mm-dd')
+        # Create DateEntry widget (larger size)
+        self.to_date_entry = DateEntry(
+            to_date_frame,
+            width=16,
+            background='darkblue',
+            foreground='white',
+            borderwidth=2,
+            date_pattern='yyyy-mm-dd',
+            font=("Segoe UI", 13)
+        )
         self.to_date_entry.pack(fill='both', expand=True)
         
         # Filter button
@@ -285,19 +318,19 @@ class ExpenseTracker(ctk.CTk):
             show="headings"
         )
         
-        # Define headings
-        self.expenses_tree.heading("id", text="ID")
-        self.expenses_tree.heading("date", text="Date")
-        self.expenses_tree.heading("amount", text="Amount (₹)")
-        self.expenses_tree.heading("category", text="Category")
-        self.expenses_tree.heading("description", text="Description")
-        
-        # Define columns
-        self.expenses_tree.column("id", width=50)
-        self.expenses_tree.column("date", width=100)
-        self.expenses_tree.column("amount", width=100)
-        self.expenses_tree.column("category", width=150)
-        self.expenses_tree.column("description", width=300)
+        # Define headings (align left to match cell data)
+        self.expenses_tree.heading("id", text="ID", anchor="w")
+        self.expenses_tree.heading("date", text="Date", anchor="w")
+        self.expenses_tree.heading("amount", text="Amount (₹)", anchor="w")
+        self.expenses_tree.heading("category", text="Category", anchor="w")
+        self.expenses_tree.heading("description", text="Description", anchor="w")
+
+        # Define columns with matching alignment and widths for larger font
+        self.expenses_tree.column("id", width=60, anchor="w", stretch=False)
+        self.expenses_tree.column("date", width=120, anchor="w", stretch=False)
+        self.expenses_tree.column("amount", width=120, anchor="w", stretch=False)
+        self.expenses_tree.column("category", width=180, anchor="w", stretch=False)
+        self.expenses_tree.column("description", width=400, anchor="w", stretch=True)
         
         # Add scrollbar
         scrollbar = ttk.Scrollbar(self.expenses_tree_frame, orient="vertical", command=self.expenses_tree.yview)
@@ -344,9 +377,16 @@ class ExpenseTracker(ctk.CTk):
         from_date_frame = tk.Frame(filter_frame)
         from_date_frame.grid(row=0, column=1, padx=5, pady=5)
         
-        # Create DateEntry widget
-        self.dashboard_from_date = DateEntry(from_date_frame, width=12, background='darkblue',
-                                           foreground='white', borderwidth=2, date_pattern='yyyy-mm-dd')
+        # Create DateEntry widget (larger size)
+        self.dashboard_from_date = DateEntry(
+            from_date_frame,
+            width=16,
+            background='darkblue',
+            foreground='white',
+            borderwidth=2,
+            date_pattern='yyyy-mm-dd',
+            font=("Segoe UI", 13)
+        )
         self.dashboard_from_date.pack(fill='both', expand=True)
         
         # Set default "From" date to the oldest expense date if available
@@ -363,9 +403,16 @@ class ExpenseTracker(ctk.CTk):
         to_date_frame = tk.Frame(filter_frame)
         to_date_frame.grid(row=0, column=3, padx=5, pady=5)
         
-        # Create DateEntry widget
-        self.dashboard_to_date = DateEntry(to_date_frame, width=12, background='darkblue',
-                                         foreground='white', borderwidth=2, date_pattern='yyyy-mm-dd')
+        # Create DateEntry widget (larger size)
+        self.dashboard_to_date = DateEntry(
+            to_date_frame,
+            width=16,
+            background='darkblue',
+            foreground='white',
+            borderwidth=2,
+            date_pattern='yyyy-mm-dd',
+            font=("Segoe UI", 13)
+        )
         self.dashboard_to_date.pack(fill='both', expand=True)
         
         # Filter button
@@ -423,8 +470,16 @@ class ExpenseTracker(ctk.CTk):
         ctk.CTkLabel(header_frame, text="AI Insights powered by Gemini 1.5 Flash", 
                      font=ctk.CTkFont(size=16, weight="bold")).grid(row=0, column=0, padx=5, pady=5, sticky="w")
         
-        generate_button = ctk.CTkButton(header_frame, text="Generate Insights", command=self.generate_ai_insights)
-        generate_button.grid(row=0, column=1, padx=5, pady=5)
+        self.generate_button = ctk.CTkButton(header_frame, text="Generate Insights", command=self.generate_ai_insights)
+        self.generate_button.grid(row=0, column=1, padx=5, pady=5)
+
+        # Loading indicator for AI generation
+        self.ai_progress = ctk.CTkProgressBar(header_frame, mode="indeterminate")
+        self.ai_progress.grid(row=1, column=0, columnspan=2, padx=5, pady=(0,5), sticky="ew")
+        try:
+            self.ai_progress.grid_remove()
+        except Exception:
+            pass
         
         # Insights display area
         self.insights_textbox = ctk.CTkTextbox(ai_frame, height=400, wrap="word")
@@ -561,9 +616,16 @@ class ExpenseTracker(ctk.CTk):
         date_frame = tk.Frame(edit_window)
         date_frame.grid(row=0, column=1, padx=10, pady=10, sticky="ew")
         
-        # Create DateEntry widget with expense date
-        date_entry = DateEntry(date_frame, width=12, background='darkblue',
-                              foreground='white', borderwidth=2, date_pattern='yyyy-mm-dd')
+        # Create DateEntry widget with expense date (larger size)
+        date_entry = DateEntry(
+            date_frame,
+            width=16,
+            background='darkblue',
+            foreground='white',
+            borderwidth=2,
+            date_pattern='yyyy-mm-dd',
+            font=("Segoe UI", 13)
+        )
         date_entry.pack(fill='both', expand=True)
         
         # Set the date to the expense date
@@ -1097,31 +1159,52 @@ class ExpenseTracker(ctk.CTk):
             messagebox.showerror("Chart Error", f"Could not update trends chart: {e}")
 
     def generate_ai_insights(self):
-        """Generate AI insights using Gemini API"""
+        """Generate AI insights using Gemini API (with loading indicator)"""
+        # Prepare UI: show loading, disable button
         try:
-            # IMPORTANT: Replace with your actual Gemini API key.
-            # It's recommended to load this from an environment variable or a config file.
-            api_key = os.getenv("GEMINI_API_KEY", "AIzaSyAENpIPg_f8VjR9UHjG-wPvOEjSzqtIeKI") # Fallback to hardcoded key if not set
-            if api_key == "AIzaSyAENpIPg_f8VjR9UHjG-wPvOEjSzqtIeKI":
-                # A simple check for the default placeholder key
-                print("Warning: Using a placeholder API key. Please set your GEMINI_API_KEY environment variable.")
+            self.insights_textbox.configure(state="normal")
+            self.insights_textbox.delete("1.0", tk.END)
+            self.insights_textbox.insert("1.0", "🤖 Generating insights, please wait...")
+            if hasattr(self, "generate_button") and self.generate_button is not None:
+                self.generate_button.configure(state="disabled", text="Generating…")
+            if hasattr(self, "ai_progress") and self.ai_progress is not None:
+                self.ai_progress.grid()
+                try:
+                    self.ai_progress.start()
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
-
-            genai.configure(api_key=api_key)
-            
+        # Build prompt on the main thread to avoid using SQLite from a worker thread
+        prompt = None
+        try:
             self.cursor.execute("SELECT SUM(amount) FROM expenses")
             total_spending = self.cursor.fetchone()[0] or 0
-            
+
             if total_spending == 0:
+                # Reset UI and inform user
+                if hasattr(self, "ai_progress") and self.ai_progress is not None:
+                    try:
+                        self.ai_progress.stop()
+                        self.ai_progress.grid_remove()
+                    except Exception:
+                        pass
+                if hasattr(self, "generate_button") and self.generate_button is not None:
+                    try:
+                        self.generate_button.configure(state="normal", text="Generate Insights")
+                    except Exception:
+                        pass
                 messagebox.showinfo("AI Insights", "No expense data to analyze. Please add some expenses first.")
+                self.insights_textbox.configure(state="disabled")
                 return
 
             self.cursor.execute("SELECT category, SUM(amount) FROM expenses GROUP BY category ORDER BY SUM(amount) DESC")
             category_spending = self.cursor.fetchall()
-            
+
             self.cursor.execute("SELECT strftime('%Y-%m', date) as month, SUM(amount) FROM expenses GROUP BY month ORDER BY month DESC LIMIT 3")
             monthly_spending = self.cursor.fetchall()
-            
+
             prompt = f"""As a helpful financial advisor, analyze the following expense data (currency: INR ₹) and provide insights.
 The user wants a clear, concise summary of their spending habits and actionable advice.
 
@@ -1131,18 +1214,18 @@ The user wants a clear, concise summary of their spending habits and actionable 
 
 **Spending by Category:**
 """
-            
+
             for category, amount in category_spending:
-                percentage = (amount / total_spending) * 100
+                percentage = (amount / total_spending) * 100 if total_spending else 0
                 prompt += f"* **{category}:** ₹{amount:.2f} ({percentage:.1f}%)\n"
-            
+
             prompt += "\n**Recent Monthly Spending (last 3 months with data):**\n"
             if monthly_spending:
                 for month, amount in monthly_spending:
                     prompt += f"* **{datetime.strptime(month, '%Y-%m').strftime('%B %Y')}:** ₹{amount:.2f}\n"
             else:
                 prompt += "* Not enough data for monthly trend analysis.\n"
-            
+
             prompt += """
 ---
 **Your Analysis and Recommendations:**
@@ -1154,23 +1237,82 @@ Based on this data, please provide the following in a friendly and encouraging t
 
 Format the response using markdown for clarity and readability.
 """
-            
-            self.insights_textbox.configure(state="normal")
-            self.insights_textbox.delete("1.0", tk.END)
-            self.insights_textbox.insert("1.0", "🤖 Generating insights, please wait...")
-
-            model = genai.GenerativeModel('gemini-1.5-flash-latest')
-            response = model.generate_content(prompt)
-            
-            self.insights_textbox.delete("1.0", tk.END)
-            self.insights_textbox.insert("1.0", response.text)
-            self.insights_textbox.configure(state="disabled")
-            
         except Exception as e:
-            self.insights_textbox.delete("1.0", tk.END)
-            self.insights_textbox.insert("1.0", f"Sorry, an error occurred while generating insights.\n\nDetails: {e}")
-            self.insights_textbox.configure(state="disabled")
-            messagebox.showerror("AI Error", f"An error occurred: {e}")
+            # If something goes wrong while preparing data, reset UI and show error
+            def prep_error():
+                try:
+                    self.insights_textbox.delete("1.0", tk.END)
+                    self.insights_textbox.insert("1.0", f"Sorry, an error occurred while preparing insights.\n\nDetails: {e}")
+                    self.insights_textbox.configure(state="disabled")
+                except Exception:
+                    pass
+                finally:
+                    try:
+                        if hasattr(self, "ai_progress") and self.ai_progress is not None:
+                            self.ai_progress.stop()
+                            self.ai_progress.grid_remove()
+                        if hasattr(self, "generate_button") and self.generate_button is not None:
+                            self.generate_button.configure(state="normal", text="Generate Insights")
+                    except Exception:
+                        pass
+            self.after(0, prep_error)
+            return
+
+        def work():
+            try:
+                # IMPORTANT: Replace with your actual Gemini API key.
+                api_key = os.getenv("GEMINI_API_KEY", "AIzaSyAENpIPg_f8VjR9UHjG-wPvOEjSzqtIeKI")
+                if api_key == "AIzaSyAENpIPg_f8VjR9UHjG-wPvOEjSzqtIeKI":
+                    print("Warning: Using a placeholder API key. Please set your GEMINI_API_KEY environment variable.")
+
+                genai.configure(api_key=api_key)
+
+                model = genai.GenerativeModel('gemini-1.5-flash-latest')
+                response = model.generate_content(prompt)
+
+                text = response.text
+
+                def done_success():
+                    try:
+                        self.insights_textbox.delete("1.0", tk.END)
+                        self.insights_textbox.insert("1.0", text)
+                        self.insights_textbox.configure(state="disabled")
+                    except Exception:
+                        pass
+                    finally:
+                        try:
+                            if hasattr(self, "ai_progress") and self.ai_progress is not None:
+                                self.ai_progress.stop()
+                                self.ai_progress.grid_remove()
+                            if hasattr(self, "generate_button") and self.generate_button is not None:
+                                self.generate_button.configure(state="normal", text="Generate Insights")
+                        except Exception:
+                            pass
+
+                self.after(0, done_success)
+
+            except Exception as e:
+                def done_error():
+                    try:
+                        self.insights_textbox.delete("1.0", tk.END)
+                        self.insights_textbox.insert("1.0", f"Sorry, an error occurred while generating insights.\n\nDetails: {e}")
+                        self.insights_textbox.configure(state="disabled")
+                        messagebox.showerror("AI Error", f"An error occurred: {e}")
+                    except Exception:
+                        pass
+                    finally:
+                        try:
+                            if hasattr(self, "ai_progress") and self.ai_progress is not None:
+                                self.ai_progress.stop()
+                                self.ai_progress.grid_remove()
+                            if hasattr(self, "generate_button") and self.generate_button is not None:
+                                self.generate_button.configure(state="normal", text="Generate Insights")
+                        except Exception:
+                            pass
+
+                self.after(0, done_error)
+
+        threading.Thread(target=work, daemon=True).start()
 
     def on_closing(self):
         """Handle application closing"""
